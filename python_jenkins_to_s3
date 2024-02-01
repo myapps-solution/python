@@ -1,0 +1,52 @@
+import boto3
+import logging
+from botocore.exceptions import ClientError
+import json
+import shutil
+import os
+from multiprocessing.pool import ThreadPool
+import glob
+
+jenkins_folder = "/var/lib/jenkins"
+zip_folder_name = "29-01-2024"
+shutil.copytree(os.path.join(jenkins_folder), os.path.join("/tmp", zip_folder_name))
+print(f"Folder '{jenkins_folder}' copied successfully to /tmp/zip_folder_name")
+
+
+def zip_folder(source_folder_path, zip_file_path):
+    try:
+        shutil.make_archive(zip_file_path, 'zip', source_folder_path)
+        print(f"Folder '{source_folder_path}' zipped successfully. Zip file created at '{zip_file_path}.zip'")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+source_folder_path = "/tmp/29-01-2024"
+
+zip_file_path = "/tmp/29-01-2024-compress"
+zip_folder(source_folder_path, zip_file_path)
+
+# Update the IAM Access Keys
+AWS_Access_Key_Id = 'AKIAXRHZ4XWT7YKURQ4W'
+AWS_Secret_Access_Key = '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'
+AWS_Region = 'us-east-1'
+S3_Bucket = 'test-savvas'
+S3_Folder_Name = 'test/'
+Files_Location = '/tmp/29-01-2024-compress.zip'
+
+
+session = boto3.client('s3', aws_access_key_id=AWS_Access_Key_Id, aws_secret_access_key=AWS_Secret_Access_Key,
+                       region_name=AWS_Region)
+
+# The list of files we're uploading to S3
+filenames = glob.glob(Files_Location)
+
+
+def upload(file):
+    s3_file = f"{S3_Folder_Name}/{os.path.basename(file)}"
+    session.upload_file(file, S3_Bucket, s3_file)
+
+
+# process files in parallel
+pool = ThreadPool(processes=len(filenames) * 3)
+pool.map(upload, filenames)
